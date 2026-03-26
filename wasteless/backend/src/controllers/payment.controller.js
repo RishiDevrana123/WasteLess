@@ -4,6 +4,9 @@ import FinancialDonation from '../models/FinancialDonation.js';
 import { stripeConfig } from '../config/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 
+// CLIENT_URL may be comma-separated for CORS; extract the first URL for redirects
+const CLIENT_BASE_URL = (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim();
+
 // Initialize Stripe (mock if no keys provided)
 let stripe;
 if (stripeConfig.secretKey) {
@@ -17,7 +20,7 @@ if (stripeConfig.secretKey) {
             sessions: {
                 create: async (options) => ({
                     id: 'session_mock_' + Date.now(),
-                    url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/donations?payment=success&session_id=session_mock_${Date.now()}`,
+                    url: `${CLIENT_BASE_URL}/donations?payment=success&session_id=session_mock_${Date.now()}`,
                 }),
             },
         },
@@ -46,8 +49,8 @@ export const createDonationOrder = async (req, res, next) => {
                 quantity: 1,
             }],
             mode: 'payment',
-            success_url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/donations?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.CLIENT_URL || 'http://localhost:5173'}/donations?payment=cancelled`,
+            success_url: `${CLIENT_BASE_URL}/donations?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${CLIENT_BASE_URL}/donations?payment=cancelled`,
         });
 
         // Store donation in DB
