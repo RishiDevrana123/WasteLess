@@ -7,11 +7,10 @@ export const useAuthStore = create(
         (set) => ({
             user: null,
             token: null,
-            refreshToken: null,
             loading: false,
             error: null,
 
-            setAuth: (user, token, refreshToken) => set({ user, token, refreshToken }),
+            setAuth: (user, token) => set({ user, token }),
 
             checkAuth: async () => {
                 // Simplified checks or refresh token logic can go here
@@ -22,8 +21,8 @@ export const useAuthStore = create(
                 set({ loading: true, error: null });
                 try {
                     const response = await authAPI.login({ email, password });
-                    const { user, token, refreshToken } = response.data.data;
-                    set({ user, token, refreshToken, loading: false });
+                    const { user, token } = response.data.data;
+                    set({ user, token, loading: false });
                     return user;
                 } catch (error) {
                     set({ loading: false, error: error.response?.data?.message || 'Login failed' });
@@ -35,8 +34,8 @@ export const useAuthStore = create(
                 set({ loading: true, error: null });
                 try {
                     const response = await authAPI.register(userData);
-                    const { user, token, refreshToken } = response.data.data;
-                    set({ user, token, refreshToken, loading: false });
+                    const { user, token } = response.data.data;
+                    set({ user, token, loading: false });
                     return user;
                 } catch (error) {
                     set({ loading: false, error: error.response?.data?.message || 'Registration failed' });
@@ -48,12 +47,12 @@ export const useAuthStore = create(
 
             logout: async () => {
                 try {
-                    // Optional: Call logout API if needed
-                    // await authAPI.logout(get().refreshToken);
+                    await authAPI.logout(); // Triggers backend cookie clearing & DB cleanup
                 } catch (err) {
-                    console.error('Logout failed', err);
+                    console.error('Backend logout cleanup failed', err);
                 } finally {
-                    set({ user: null, token: null, refreshToken: null });
+                    // Always clear local state even if network fails
+                    set({ user: null, token: null });
                 }
             },
         }),
@@ -61,8 +60,7 @@ export const useAuthStore = create(
             name: 'auth-storage',
             partialize: (state) => ({
                 user: state.user,
-                token: state.token,
-                refreshToken: state.refreshToken
+                token: state.token
             }), // Only persist these
         }
     )

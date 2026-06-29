@@ -12,7 +12,11 @@ const generateToken = (id) => {
 };
 
 const generateRefreshToken = (id) => {
-    return jwt.sign({ id }, jwtConfig.refreshSecret, { expiresIn: jwtConfig.refreshExpiresIn });
+    return jwt.sign(
+        { id, jti: crypto.randomUUID() },
+        jwtConfig.refreshSecret,
+        { expiresIn: jwtConfig.refreshExpiresIn }
+    );
 };
 
 export const register = async (req, res, next) => {
@@ -64,6 +68,13 @@ export const register = async (req, res, next) => {
         user.refreshTokens.push(refreshToken);
         await user.save();
 
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
         res.status(201).json({
             success: true,
             data: {
@@ -74,7 +85,6 @@ export const register = async (req, res, next) => {
                     role: user.role,
                 },
                 token,
-                refreshToken,
             },
         });
     } catch (error) {
@@ -104,9 +114,31 @@ export const login = async (req, res, next) => {
         const token = generateToken(user._id);
         const refreshToken = generateRefreshToken(user._id);
 
+        // OPTIMIZATION: Filter out any expired refresh tokens from the database array 
+        // before pushing the new one, preventing infinite array growth.
+        if (user.refreshTokens && user.refreshTokens.length > 0) {
+            user.refreshTokens = user.refreshTokens.filter(t => {
+                try {
+                    jwt.verify(t, jwtConfig.refreshSecret);
+                    return true; // Token is still valid, keep it
+                } catch (err) {
+                    return false; // Token is expired or corrupted, drop it
+                }
+            });
+        }
+
         user.refreshTokens.push(refreshToken);
         await user.save();
 
+        // Set the long-lived refresh token in an httpOnly cookie
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // true in production
+            sameSite: 'Strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days (matches your JWT expiration)
+        });
+
+        // Send ONLY the short-lived access token in the JSON body
         res.json({
             success: true,
             data: {
@@ -117,8 +149,7 @@ export const login = async (req, res, next) => {
                     role: user.role,
                     emailVerified: user.emailVerified,
                 },
-                token,
-                refreshToken,
+                token // short-lived access token
             },
         });
     } catch (error) {
@@ -128,7 +159,8 @@ export const login = async (req, res, next) => {
 
 export const refreshToken = async (req, res, next) => {
     try {
-        const { refreshToken } = req.body;
+        // Read the token from cookies instead of request body
+        const refreshToken = req.cookies.refreshToken;
 
         if (!refreshToken) {
             return next(new AppError('Refresh token is required', 400));
@@ -136,33 +168,51 @@ export const refreshToken = async (req, res, next) => {
 
         const decoded = jwt.verify(refreshToken, jwtConfig.refreshSecret);
         const user = await User.findById(decoded.id);
-
-        if (!user || !user.refreshTokens.includes(refreshToken)) {
-            return next(new AppError('Invalid refresh token', 401));
+        if (!user) {
+            return next(new AppError('Invalid refresh token: User does not exist', 401));
         }
+
+        if (!user.refreshTokens.includes(refreshToken)) {
+            user.refreshTokens = [];
+            await user.save();
+            
+            // Clear the compromised cookie cleanly
+            res.clearCookie('refreshToken');
+            return next(new AppError('Security Breach Detected: All sessions revoked. Please re-authenticate.', 403));
+        }
+
+        user.refreshTokens = user.refreshTokens.filter(t => t !== refreshToken);
 
         const newToken = generateToken(user._id);
         const newRefreshToken = generateRefreshToken(user._id);
 
-        user.refreshTokens = user.refreshTokens.filter(t => t !== refreshToken);
         user.refreshTokens.push(newRefreshToken);
         await user.save();
 
+        // Overwrite the cookie with the brand new rotated refresh token
+        res.cookie('refreshToken', newRefreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
+        // Only return the access token back to the JS application state
         res.json({
             success: true,
             data: {
-                token: newToken,
-                refreshToken: newRefreshToken,
+                token: newToken
             },
         });
     } catch (error) {
+        res.clearCookie('refreshToken');
         next(new AppError('Invalid or expired refresh token', 401));
     }
 };
 
 export const logout = async (req, res, next) => {
     try {
-        const { refreshToken } = req.body;
+        const refreshToken = req.cookies.refreshToken;
 
         if (refreshToken) {
             const decoded = jwt.verify(refreshToken, jwtConfig.refreshSecret);
@@ -174,6 +224,8 @@ export const logout = async (req, res, next) => {
             }
         }
 
+        // Wipe the cookie out completely
+        res.clearCookie('refreshToken');
         res.json({ success: true, message: 'Logged out successfully' });
     } catch (error) {
         next(error);

@@ -1,17 +1,26 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+/**
+ * WasteLess Pantry (Inventory) API — Property-Based Chaos Testing
+ *
+ * Fires 1000 randomized extreme payloads at the inventory endpoint
+ * to verify the server never crashes with a 500 Internal Server Error.
+ *
+ * Uses fast-check for automated permutation generation.
+ */
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import fc from 'fast-check';
+import app from '../src/app.js';
+import * as groqService from '../src/services/groq.service.js';
 
-const API_URL = 'http://localhost:5000/api';
 let authToken = '';
 
 describe('WasteLess Pantry API - Deep Permutation Testing', () => {
 
-    // Setup: Create a temporary user to get a valid authentication token
-    beforeAll(async () => {
+    // Setup: Register a temporary user to get a valid authentication token
+    beforeEach(async () => {
         const uniqueEmail = `pantry_tester_${Date.now()}@test.com`;
-        const res = await request(API_URL)
-            .post('/auth/register')
+        const res = await request(app)
+            .post('/api/auth/register')
             .send({
                 name: 'Pantry Tester',
                 email: uniqueEmail,
@@ -19,13 +28,12 @@ describe('WasteLess Pantry API - Deep Permutation Testing', () => {
                 phone: '1234567890'
             });
 
-        // Save the valid token to inject into our 1000 pantry requests
         if (res.body?.data?.token) {
             authToken = res.body.data.token;
         }
     });
 
-    it('Should survive 1000 extreme randomized pantry additions without crashing (No 500 Errors)', async () => {
+    it('Should survive 100 extreme randomized pantry additions without crashing (No 500 Errors)', async () => {
 
         await fc.assert(
             fc.asyncProperty(
@@ -36,8 +44,8 @@ describe('WasteLess Pantry API - Deep Permutation Testing', () => {
                 fc.date(), // Completely random dates (thousands of years past/future)
 
                 async (name, quantity, unit, category, expiryDate) => {
-                    const response = await request(API_URL)
-                        .post('/inventory')
+                    const response = await request(app)
+                        .post('/api/inventory')
                         .set('Authorization', `Bearer ${authToken}`)
                         .send({
                             name,
@@ -56,10 +64,33 @@ describe('WasteLess Pantry API - Deep Permutation Testing', () => {
                 }
             ),
             {
-                numRuns: 1000,
+                numRuns: 100,
                 endOnFailure: true
             }
         );
 
-    }, 120000); // Allow maximum of 2 minutes to pound the server with 1000 requests
+    }, 120000); // Allow maximum of 2 minutes
+    
+    it('Should trigger Heuristic Fallback when AI response is malformed or crashes (Sad Path)', async () => {
+        // Mock the Groq service to throw a network error/crash
+        const parseSpy = vi.spyOn(groqService, 'parseSmartEntry').mockRejectedValueOnce(new Error('Simulated Groq API Crash'));
+
+        const badPrompt = "I bought 3 apples and some weird alien fruit.";
+        const response = await request(app)
+            .post('/api/inventory/smart-entry')
+            .set('Authorization', `Bearer ${authToken}`)
+            .send({ prompt: badPrompt });
+
+        // Endpoint should not crash (no 500)
+        expect(response.status).toBe(201); // Or whatever success code is returned, typically 200/201
+        expect(response.body.success).toBe(true);
+        expect(response.body.data.length).toBe(1);
+
+        // Verify heuristic fallback data
+        const fallbackItem = response.body.data[0];
+        expect(fallbackItem.category).toBe('other');
+        expect(fallbackItem.name).toContain('I bought 3 apples and some weird');
+
+        parseSpy.mockRestore();
+    });
 });

@@ -6,11 +6,14 @@ export const getSuggestions = async (req, res, next) => {
     try {
         const { limit = 5, prioritizeExpiring = true } = req.query;
 
-        // Get user's inventory
+        // OPTIMIZATION: Added a hard limit of 15 items at the database layer
+        // to prevent context bloat while prioritizing critically expiring foods
         const inventory = await InventoryItem.find({
             user: req.user._id,
             status: { $in: ['fresh', 'expiring-soon'] },
-        }).sort(prioritizeExpiring === 'true' ? 'expiryDate' : '-createdAt');
+        })
+        .sort(prioritizeExpiring === 'true' || prioritizeExpiring === true ? 'expiryDate' : '-createdAt')
+        .limit(15); 
 
         if (inventory.length === 0) {
             return res.json({
@@ -20,7 +23,6 @@ export const getSuggestions = async (req, res, next) => {
             });
         }
 
-        // Get recipe suggestions
         const recipes = await getRecipeSuggestions(inventory, parseInt(limit));
 
         res.json({
@@ -36,11 +38,14 @@ export const getCustomSuggestions = async (req, res, next) => {
     try {
         const { prompt } = req.body;
 
-        // Get user's inventory
+        // OPTIMIZATION: Capped inventory items at 15 for the custom prompt route
+        // ensures the LLM receives a highly targeted set of ingredients
         const inventory = await InventoryItem.find({
             user: req.user._id,
             status: { $in: ['fresh', 'expiring-soon'] },
-        }).sort('expiryDate');
+        })
+        .sort('expiryDate')
+        .limit(15);
 
         const recipes = await getGroqRecipeSuggestions(inventory, prompt);
 

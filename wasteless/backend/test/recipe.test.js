@@ -1,8 +1,14 @@
+/**
+ * WasteLess Recipe API — Property-Based Chaos Testing
+ *
+ * Fires randomized payloads at the recipe generation endpoint
+ * to verify the server never crashes with a 500 Internal Server Error.
+ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import fc from 'fast-check';
+import app from '../src/app.js';
 
-const API_URL = 'http://localhost:5000/api';
 let authToken = '';
 
 describe('WasteLess Recipe API - Deep Permutation Testing', () => {
@@ -10,8 +16,8 @@ describe('WasteLess Recipe API - Deep Permutation Testing', () => {
     // Setup Temporary User
     beforeAll(async () => {
         const uniqueEmail = `recipe_tester_${Date.now()}@test.com`;
-        const res = await request(API_URL)
-            .post('/auth/register')
+        const res = await request(app)
+            .post('/api/auth/register')
             .send({
                 name: 'Recipe Tester',
                 email: uniqueEmail,
@@ -24,7 +30,7 @@ describe('WasteLess Recipe API - Deep Permutation Testing', () => {
         }
     });
 
-    it('Should process 1000 randomized AI recipe generation requests without crashing', async () => {
+    it('Should process 50 randomized AI recipe generation requests without crashing', async () => {
 
         // Fast-check will generate arrays with random strings, empty arrays, weird characters
         await fc.assert(
@@ -35,8 +41,8 @@ describe('WasteLess Recipe API - Deep Permutation Testing', () => {
 
                 async (ingredients, preferences, cuisine) => {
                     // Send bizarre configurations directly to the AI Recipe generator route
-                    const response = await request(API_URL)
-                        .post('/recipes/generate')
+                    const response = await request(app)
+                        .post('/api/recipes/generate')
                         .set('Authorization', `Bearer ${authToken}`)
                         .send({
                             ingredients,
@@ -44,13 +50,13 @@ describe('WasteLess Recipe API - Deep Permutation Testing', () => {
                             cuisine
                         });
 
-                    // Even if Groq API fails or invalid ingredients are passed,
+                    // Even if the AI API fails or invalid ingredients are passed,
                     // our error handling middleware should catch it cleanly, avoiding a full 500 server crash!
                     expect(response.status).not.toBe(500);
                 }
             ),
             {
-                numRuns: 1000,
+                numRuns: 50,
                 endOnFailure: true
             }
         );

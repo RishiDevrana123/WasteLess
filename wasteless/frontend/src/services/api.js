@@ -5,6 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
     baseURL: API_URL,
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -32,16 +33,14 @@ api.interceptors.response.use(
             originalRequest._retry = true;
 
             try {
-                const { refreshToken } = useAuthStore.getState();
-                const response = await axios.post(`${API_URL}/auth/refresh-token`, {
-                    refreshToken,
+                const response = await axios.post(`${API_URL}/auth/refresh-token`, {}, {
+                    withCredentials: true
                 });
 
-                const { token: newToken, refreshToken: newRefreshToken } = response.data.data;
+                const { token: newToken } = response.data.data;
                 useAuthStore.getState().setAuth(
                     useAuthStore.getState().user,
-                    newToken,
-                    newRefreshToken
+                    newToken
                 );
 
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -63,7 +62,7 @@ export default api;
 export const authAPI = {
     register: (data) => api.post('/auth/register', data),
     login: (data) => api.post('/auth/login', data),
-    logout: (refreshToken) => api.post('/auth/logout', { refreshToken }),
+    logout: () => api.post('/auth/logout'),
     forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
     resetPassword: (token, password) => api.post(`/auth/reset-password/${token}`, { password }),
 };

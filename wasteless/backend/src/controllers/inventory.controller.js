@@ -153,9 +153,87 @@ export const processSmartEntry = async (req, res, next) => {
             return next(new AppError('Please provide a grocery haul description', 400));
         }
 
-        const items = await parseSmartEntry(prompt);
+        let items = [];
+        let aiParsedSuccessfully = true;
 
-        if (!items || items.length === 0) {
+        try {
+            // LAYER 1: Raw Response Interception and Sanitization
+            const rawResponse = await parseSmartEntry(prompt);
+            
+            let sanitizedString = '';
+            if (typeof rawResponse === 'string') {
+                // Regex isolating the JSON content safely between the first '[' and last ']' or '{' and '}'
+                const jsonMatch = rawResponse.match(/[\{\[][\s\S]*[\}\]]/);
+                if (!jsonMatch) {
+                    throw new Error("No structural JSON patterns identified in AI text response.");
+                }
+                sanitizedString = jsonMatch[0];
+                items = JSON.parse(sanitizedString);
+            } else if (Array.isArray(rawResponse)) {
+                items = rawResponse;
+            } else if (rawResponse && typeof rawResponse === 'object') {
+                items = [rawResponse];
+            }
+
+            // Standardize items layout to an array
+            if (!Array.isArray(items)) {
+                items = [items];
+            }
+
+            // LAYER 2: Structural Integrity and Type Validation Validation Check
+            items = items.map(item => {
+                // Ensure a valid item name string exists
+                const validName = item.name || item.itemName || prompt.substring(0, 30);
+                
+                // Defensive Expiry Check: If date parsing fails, cleanly default to 5 days from now
+                let validExpiry = new Date(item.expiryDate);
+                if (isNaN(validExpiry.getTime())) {
+                    validExpiry = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); 
+                }
+                
+                // Validate category enum
+                const validCategories = ['vegetables', 'fruits', 'dairy', 'meat', 'grains', 'spices', 'beverages', 'snacks', 'other'];
+                const category = String(item.category).toLowerCase();
+
+                // Validate unit enum
+                const validUnits = ['kg', 'g', 'l', 'ml', 'pieces', 'packets'];
+                let quantityValue = 1;
+                let quantityUnit = 'pieces';
+                if (item.quantity && typeof item.quantity === 'object') {
+                    quantityValue = Number(item.quantity.value) || 1;
+                    quantityUnit = validUnits.includes(String(item.quantity.unit).toLowerCase()) ? String(item.quantity.unit).toLowerCase() : 'pieces';
+                } else if (item.quantity) {
+                    quantityValue = Number(item.quantity) || 1;
+                }
+
+                return {
+                    name: String(validName).trim(),
+                    quantity: {
+                        value: quantityValue,
+                        unit: quantityUnit
+                    },
+                    category: validCategories.includes(category) ? category : 'other',
+                    expiryDate: validExpiry,
+                };
+            });
+
+        } catch (aiError) {
+            // LAYER 3: Defensive Catch & Heuristic Failure Recovery Mode
+            console.error("Groq Ingestion Layer crashed or returned malformed payloads. Triggering Heuristic Fallback:", aiError.message);
+            
+            aiParsedSuccessfully = false;
+            
+            // Build a single baseline tracking item directly out of the raw text so the app remains interactive
+            items = [{
+                name: prompt.substring(0, 40).trim() + "...",
+                quantity: { value: 1, unit: 'pieces' },
+                category: 'other',
+                expiryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // Default window of 3 days
+            }];
+        }
+
+        // Processing database insertions using structural maps
+        if (items.length === 0) {
             return res.status(200).json({ success: true, count: 0, data: [] });
         }
 
@@ -181,6 +259,7 @@ export const processSmartEntry = async (req, res, next) => {
 
         const createdItems = await InventoryItem.insertMany(itemsToInsert);
 
+        // Fire background push hooks for critical shelf-life warnings
         for (const item of createdItems) {
             if (item.status === 'expiring-soon') {
                 const daysUntilExpiry = Math.ceil(
@@ -197,8 +276,10 @@ export const processSmartEntry = async (req, res, next) => {
             }
         }
 
+        // Return unified status payloads with explicit processing health indicator flags
         res.status(201).json({
             success: true,
+            aiParsedSuccessfully, // Tells frontend whether parsing worked perfectly or a fallback occurred
             count: createdItems.length,
             data: createdItems
         });

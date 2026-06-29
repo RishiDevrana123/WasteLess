@@ -1,5 +1,5 @@
 import Notification from '../models/Notification.js';
-import { io } from '../server.js';
+import app from '../app.js';
 
 /**
  * Create and send notification to user
@@ -15,7 +15,12 @@ export const createNotification = async ({ user, type, title, message, data }) =
         });
 
         // Send real-time notification via Socket.io
-        io.to(`user:${user}`).emit('notification', notification);
+        // io is set on the app instance by server.js at startup;
+        // during tests it may be undefined, so we guard against that.
+        const io = app.get('io');
+        if (io) {
+            io.to(`user:${user}`).emit('notification', notification);
+        }
 
         // TODO: Send push notification via FCM
         // TODO: Send email notification if enabled
