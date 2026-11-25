@@ -12,7 +12,10 @@ export const addShoppingItems = async (req, res, next) => {
         const existingItems = await ShoppingItem.find({ user: req.user._id });
         const existingNames = new Set(existingItems.map(item => item.name.toLowerCase()));
 
-        const itemsToAdd = items.filter(itemName => !existingNames.has(itemName.toLowerCase()));
+        const itemsToAdd = items.filter(item => {
+            const name = typeof item === 'string' ? item : item?.name;
+            return name && !existingNames.has(name.toLowerCase().trim());
+        });
 
         if (itemsToAdd.length === 0) {
             return res.status(200).json({
@@ -22,12 +25,24 @@ export const addShoppingItems = async (req, res, next) => {
             });
         }
 
-        const newItems = itemsToAdd.map(itemName => ({
-            user: req.user._id,
-            name: itemName,
-            recipeId,
-            recipeName
-        }));
+        const newItems = itemsToAdd.map(item => {
+            if (typeof item === 'string') {
+                return {
+                    user: req.user._id,
+                    name: item.trim(),
+                    recipeId,
+                    recipeName
+                };
+            }
+            return {
+                user: req.user._id,
+                name: item.name.trim(),
+                category: item.category || 'other',
+                quantity: item.quantity || { value: 1, unit: 'pieces' },
+                recipeId,
+                recipeName
+            };
+        });
 
         const result = await ShoppingItem.insertMany(newItems);
         res.status(201).json({

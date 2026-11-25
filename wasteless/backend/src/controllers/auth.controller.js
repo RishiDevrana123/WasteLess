@@ -71,7 +71,7 @@ export const register = async (req, res, next) => {
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'Strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'Strict' : 'Lax',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
 
@@ -134,7 +134,7 @@ export const login = async (req, res, next) => {
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production', // true in production
-            sameSite: 'Strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'Strict' : 'Lax',
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days (matches your JWT expiration)
         });
 
@@ -193,7 +193,7 @@ export const refreshToken = async (req, res, next) => {
         res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'Strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'Strict' : 'Lax',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
 

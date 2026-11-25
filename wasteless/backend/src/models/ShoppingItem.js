@@ -12,6 +12,14 @@ const shoppingItemSchema = new mongoose.Schema(
             required: [true, 'Item name is required'],
             trim: true,
         },
+        category: {
+            type: String,
+            default: 'other',
+        },
+        quantity: {
+            value: { type: Number, default: 1 },
+            unit: { type: String, default: 'pieces' },
+        },
         recipeId: {
             type: String, // Optional, to trace back to the recipe that suggested it
         },

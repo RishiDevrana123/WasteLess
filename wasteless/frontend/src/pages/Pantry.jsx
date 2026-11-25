@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { motion, useScroll, useTransform } from 'framer-motion';
+import BorderBeam from '../components/ui/border-beam';
 
 export default function Pantry() {
     const [searchTerm, setSearchTerm] = useState('');
@@ -227,6 +228,13 @@ export default function Pantry() {
                                     transition={{ duration: 0.5, delay: (index % 10) * 0.05, ease: "easeOut" }}
                                     className="group bg-[#111] rounded-[1.5rem] border border-white/5 hover:border-white/10 hover:bg-[#151515] hover:shadow-2xl transition-all duration-500 flex flex-col h-full relative overflow-hidden"
                                 >
+                                    {/* Border beam only on fresh items */}
+                                    {dynamicStatus === 'fresh' && (
+                                        <BorderBeam colorFrom="#22c55e" colorTo="#86efac" duration={5} size={1} />
+                                    )}
+                                    {dynamicStatus === 'expiring-soon' && (
+                                        <BorderBeam colorFrom="#f59e0b" colorTo="#fcd34d" duration={3} size={1} />
+                                    )}
                                     {/* Item Image with Gradient Overlay */}
                                     {item.image && (
                                         <div className="absolute top-0 left-0 w-full h-32 z-0">
@@ -406,7 +414,8 @@ export default function Pantry() {
                                             <option value="g" className="bg-black">g</option>
                                             <option value="l" className="bg-black">l</option>
                                             <option value="ml" className="bg-black">ml</option>
-                                            <option value="items" className="bg-black">items</option>
+                                            <option value="pieces" className="bg-black">pieces</option>
+                                            <option value="packets" className="bg-black">packets</option>
                                         </select>
                                     </div>
                                 </div>

@@ -5,6 +5,8 @@ import { recipeAPI, shoppingAPI, userAPI } from '../services/api';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShoppingListDrawer from '../components/ShoppingListDrawer';
+import { inferFoodAttributes } from '../utils/shelfLife';
+import BorderBeam from '../components/ui/border-beam';
 
 export default function Recipes() {
     const queryClient = useQueryClient();
@@ -49,8 +51,28 @@ export default function Recipes() {
     const handleAddToList = (recipe) => {
         if (!recipe.missingIngredients?.length) return;
         setDrawerRecipeProps({ id: recipe.id, name: recipe.name });
+
+        // Enrich missing ingredients with quantities & categories parsed from recipe.ingredients
+        const enrichedItems = recipe.missingIngredients.map(missingName => {
+            const lowerMissing = missingName.toLowerCase().trim();
+            // Look for matching line in full recipe ingredients (e.g. "200g paneer" or "2 medium onions")
+            const fullIngredientLine = (recipe.ingredients || []).find(ing =>
+                ing.toLowerCase().includes(lowerMissing)
+            );
+            const inferred = inferFoodAttributes(fullIngredientLine || missingName);
+
+            return {
+                name: missingName,
+                quantity: {
+                    value: inferred.quantityValue,
+                    unit: inferred.quantityUnit
+                },
+                category: inferred.category
+            };
+        });
+
         addToListMutation.mutate({
-            items: recipe.missingIngredients,
+            items: enrichedItems,
             recipeId: recipe.id,
             recipeName: recipe.name
         });
@@ -211,6 +233,10 @@ export default function Recipes() {
                                     transition={{ duration: 0.6, delay: index * 0.1, ease: "easeOut" }}
                                     className="group bg-[#111] rounded-[1.5rem] p-5 border border-white/5 hover:border-green-500/30 hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.15)] transition-all duration-500 flex flex-col h-full relative overflow-hidden"
                                 >
+                                    {/* Border beam on high-match recipes only */}
+                                    {recipe.matchPercentage >= 80 && (
+                                        <BorderBeam colorFrom="#22c55e" colorTo="#34d399" duration={4} size={1} />
+                                    )}
                                     {/* Subtle hover glow */}
                                     <div className="absolute inset-0 bg-gradient-to-tr from-green-500/0 via-white/0 to-green-500/0 opacity-0 group-hover:opacity-[0.03] transition-opacity duration-700 pointer-events-none"></div>
 

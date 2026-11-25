@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CheckCircle2, Circle, ShoppingCart, Trash2, PackagePlus, Calendar } from 'lucide-react';
+import { X, CheckCircle2, Circle, ShoppingCart, Trash2, PackagePlus, Calendar, Sparkles } from 'lucide-react';
+import BorderBeam from '../components/ui/border-beam';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { shoppingAPI, inventoryAPI } from '../services/api';
+import { inferFoodAttributes, EXPIRY_PRESETS, getDatePlusDays } from '../utils/shelfLife';
 import toast from 'react-hot-toast';
 
 const CATEGORIES = ['vegetables', 'fruits', 'dairy', 'meat', 'grains', 'spices', 'beverages', 'snacks', 'other'];
@@ -69,11 +71,19 @@ export default function ShoppingListDrawer({ isOpen, onClose, recipeId, recipeNa
         if (purchasedItems.length > 0) {
             const initialForms = {};
             purchasedItems.forEach(item => {
+                const inferred = inferFoodAttributes(item.name);
+                const category = (item.category && item.category !== 'other') ? item.category : inferred.category;
+                const quantityValue = item.quantity?.value ?? inferred.quantityValue;
+                const quantityUnit = item.quantity?.unit ?? inferred.quantityUnit;
+                const expiryDate = inferred.expiryDate;
+
                 initialForms[item._id] = {
-                    category: 'other',
-                    quantityValue: 1,
-                    quantityUnit: 'pieces',
-                    expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Default 1 week
+                    name: inferred.cleanName || item.name,
+                    category,
+                    quantityValue,
+                    quantityUnit,
+                    expiryDate,
+                    shelfLifeDays: inferred.shelfLifeDays
                 };
             });
             setPantryForms(initialForms);
@@ -110,14 +120,14 @@ export default function ShoppingListDrawer({ isOpen, onClose, recipeId, recipeNa
         const payload = purchasedItems.map(item => {
             const form = pantryForms[item._id];
             return {
-                name: item.name,
-                category: form.category,
+                name: form?.name || item.name,
+                category: form?.category || 'other',
                 quantity: {
-                    value: Number(form.quantityValue),
-                    unit: form.quantityUnit
+                    value: Number(form?.quantityValue) || 1,
+                    unit: form?.quantityUnit || 'pieces'
                 },
-                expiryDate: form.expiryDate,
-                storage: 'pantry'
+                expiryDate: form?.expiryDate || getDatePlusDays(7),
+                storage: (form?.category === 'dairy' || form?.category === 'meat') ? 'refrigerator' : 'pantry'
             };
         });
         addToPantryMutation.mutate(payload);
@@ -199,11 +209,14 @@ export default function ShoppingListDrawer({ isOpen, onClose, recipeId, recipeNa
                                                     initial={{ opacity: 0, x: 20 }}
                                                     animate={{ opacity: 1, x: 0 }}
                                                     exit={{ opacity: 0, x: -20, scale: 0.95 }}
-                                                    className={`group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 ${item.isPurchased
+                                                    className={`group relative flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 ${item.isPurchased
                                                         ? 'bg-white/[0.02] border-white/5 opacity-60'
                                                         : 'bg-zinc-900/50 border-white/10 hover:border-green-500/50 hover:bg-zinc-800 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] shadow-md'
                                                         }`}
                                                 >
+                                                    {!item.isPurchased && (
+                                                        <BorderBeam colorFrom="#22c55e" colorTo="#86efac" duration={4} size={1} />
+                                                    )}
                                                     <div className="flex items-center gap-4">
                                                         <motion.button
                                                             whileHover={{ scale: 1.1 }}
@@ -293,9 +306,15 @@ export default function ShoppingListDrawer({ isOpen, onClose, recipeId, recipeNa
                             <div className="p-6 overflow-y-auto space-y-6 bg-zinc-900/50">
                                 {purchasedItems.map(item => (
                                     <div key={item._id} className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-4">
-                                        <div className="flex font-semibold text-green-400 items-center gap-2 text-lg">
-                                            <CheckCircle2 size={18} /> {item.name}
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="flex font-semibold text-green-400 items-center gap-2 text-lg">
+                                                <CheckCircle2 size={18} /> {pantryForms[item._id]?.name || item.name}
+                                            </div>
+                                            <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                                <Sparkles size={11} /> Smart Estimate: ~{pantryForms[item._id]?.shelfLifeDays || 7}d shelf life
+                                            </span>
                                         </div>
+
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-1.5">
                                                 <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Category</label>
@@ -331,15 +350,43 @@ export default function ShoppingListDrawer({ isOpen, onClose, recipeId, recipeNa
                                                     </select>
                                                 </div>
                                             </div>
-                                            <div className="col-span-2 space-y-1.5">
-                                                <label className="text-xs text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                                                    <Calendar size={12} /> Expiry Date
-                                                </label>
+                                            <div className="col-span-2 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                                        <Calendar size={12} className="text-green-500" /> Expiry Date
+                                                    </label>
+                                                    <span className="text-[11px] text-gray-400 font-medium">Quick Presets:</span>
+                                                </div>
+
+                                                {/* Quick Expiry Chips */}
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {EXPIRY_PRESETS.map((preset) => {
+                                                        const presetDate = getDatePlusDays(preset.days);
+                                                        const isSelected = pantryForms[item._id]?.expiryDate === presetDate;
+                                                        return (
+                                                            <button
+                                                                key={preset.label}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    handlePantryFormChange(item._id, 'expiryDate', presetDate);
+                                                                    handlePantryFormChange(item._id, 'shelfLifeDays', preset.days);
+                                                                }}
+                                                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${isSelected
+                                                                        ? 'bg-green-500 text-black shadow-sm font-bold'
+                                                                        : 'bg-zinc-950 text-gray-400 hover:text-white border border-white/10 hover:border-white/20'
+                                                                    }`}
+                                                            >
+                                                                +{preset.label}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
                                                 <input
                                                     type="date"
                                                     value={pantryForms[item._id]?.expiryDate || ''}
                                                     onChange={(e) => handlePantryFormChange(item._id, 'expiryDate', e.target.value)}
-                                                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:border-green-500 outline-none"
+                                                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-all"
                                                 />
                                             </div>
                                         </div>

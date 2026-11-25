@@ -185,15 +185,29 @@ export const processSmartEntry = async (req, res, next) => {
                 // Ensure a valid item name string exists
                 const validName = item.name || item.itemName || prompt.substring(0, 30);
                 
-                // Defensive Expiry Check: If date parsing fails, cleanly default to 5 days from now
-                let validExpiry = new Date(item.expiryDate);
-                if (isNaN(validExpiry.getTime())) {
-                    validExpiry = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); 
-                }
-                
                 // Validate category enum
                 const validCategories = ['vegetables', 'fruits', 'dairy', 'meat', 'grains', 'spices', 'beverages', 'snacks', 'other'];
-                const category = String(item.category).toLowerCase();
+                const category = validCategories.includes(String(item.category).toLowerCase()) ? String(item.category).toLowerCase() : 'other';
+
+                // Category-aware fallback shelf life when AI doesn't return a parseable date
+                const CATEGORY_FALLBACK_DAYS = {
+                    meat: 2,
+                    dairy: 5,
+                    vegetables: 7,
+                    fruits: 7,
+                    snacks: 30,
+                    grains: 90,
+                    spices: 180,
+                    beverages: 14,
+                    other: 7
+                };
+
+                // Defensive Expiry Check: If date parsing fails, default intelligently by category
+                let validExpiry = new Date(item.expiryDate);
+                if (isNaN(validExpiry.getTime())) {
+                    const fallbackDays = CATEGORY_FALLBACK_DAYS[category] || 7;
+                    validExpiry = new Date(Date.now() + fallbackDays * 24 * 60 * 60 * 1000); 
+                }
 
                 // Validate unit enum
                 const validUnits = ['kg', 'g', 'l', 'ml', 'pieces', 'packets'];
@@ -212,7 +226,7 @@ export const processSmartEntry = async (req, res, next) => {
                         value: quantityValue,
                         unit: quantityUnit
                     },
-                    category: validCategories.includes(category) ? category : 'other',
+                    category,
                     expiryDate: validExpiry,
                 };
             });

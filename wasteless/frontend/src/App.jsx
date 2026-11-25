@@ -3,6 +3,7 @@ import { useAuthStore } from './store/authStore';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useSocket } from './hooks/useSocket';
 
 // Pages
 import Home from './pages/Home';
@@ -20,6 +21,7 @@ import Admin from './pages/Admin';
 
 function App() {
     const { user } = useAuthStore();
+    useSocket();
 
     return (
         <div className="min-h-screen bg-black text-white flex flex-col font-sans antialiased selection:bg-green-500/30 selection:text-green-200 relative">

@@ -20,7 +20,7 @@ export const useSocket = () => {
 
             socket.on('connect', () => {
                 console.log('✅ Socket connected');
-                socket.emit('join', user.id);
+                socket.emit('join', user.id || user._id);
             });
 
             socket.on('notification', (notification) => {

@@ -25,7 +25,12 @@ export const useAuthStore = create(
                     set({ user, token, loading: false });
                     return user;
                 } catch (error) {
-                    set({ loading: false, error: error.response?.data?.message || 'Login failed' });
+                    const data = error.response?.data;
+                    const message =
+                        data?.error ||
+                        (data?.errors?.length ? data.errors.map(e => e.msg).join(', ') : null) ||
+                        'Login failed';
+                    set({ loading: false, error: message });
                     throw error;
                 }
             },
@@ -38,7 +43,13 @@ export const useAuthStore = create(
                     set({ user, token, loading: false });
                     return user;
                 } catch (error) {
-                    set({ loading: false, error: error.response?.data?.message || 'Registration failed' });
+                    const data = error.response?.data;
+                    // Backend sends either `data.error` (AppError) or `data.errors` (express-validator array)
+                    const message =
+                        data?.error ||
+                        (data?.errors?.length ? data.errors.map(e => e.msg).join(', ') : null) ||
+                        'Registration failed';
+                    set({ loading: false, error: message });
                     throw error;
                 }
             },

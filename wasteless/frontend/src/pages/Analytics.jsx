@@ -4,6 +4,7 @@ import { analyticsAPI } from '../services/api';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import { motion } from 'framer-motion';
+import BorderBeam from '../components/ui/border-beam';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
@@ -135,6 +136,7 @@ export default function Analytics() {
                                     transition={{ delay: index * 0.1 }}
                                     className="group bg-black/40 backdrop-blur-xl rounded-[2rem] p-8 border border-white/10 hover:border-green-500/50 hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(34,197,94,0.15)] transition-all duration-500 flex flex-col relative overflow-hidden"
                                 >
+                                    <BorderBeam colorFrom={stat.color.includes('green') ? '#22c55e' : stat.color.includes('blue') ? '#3b82f6' : '#a855f7'} colorTo={stat.color.includes('green') ? '#86efac' : stat.color.includes('blue') ? '#93c5fd' : '#d8b4fe'} duration={5 + index} size={1} />
                                     <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                     <div className="flex justify-between items-start mb-8 relative z-10">
                                         <div className={`p-4 rounded-2xl ${stat.bg} ${stat.color} border ${stat.border} shadow-inner group-hover:scale-110 transition-transform duration-500`}>

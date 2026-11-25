@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, X, ScanLine, ArrowLeft, Barcode, RefreshCcw, CheckCircle, Sparkles, MessageSquareText } from 'lucide-react';
+import { Camera, X, ScanLine, ArrowLeft, Barcode, RefreshCcw, CheckCircle, Sparkles, MessageSquareText, Upload } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryAPI } from '../services/api';
@@ -16,12 +16,25 @@ export default function Scanner() {
     const [activeTab, setActiveTab] = useState('smart'); // 'smart' or 'manual'
     const [smartPrompt, setSmartPrompt] = useState('');
     const webcamRef = useRef(null);
+    const photoInputRef = useRef(null);
 
     const capture = useCallback(() => {
         const imageSrc = webcamRef.current.getScreenshot();
         setCapturedImage(imageSrc);
         setIsScanning(false);
     }, [webcamRef]);
+
+    const handlePhotoUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCapturedImage(reader.result);
+                setIsScanning(false);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const { register, handleSubmit, formState: { errors } } = useForm();
 
@@ -167,13 +180,30 @@ export default function Scanner() {
                                             Take a picture of your food to instantly attach it to the pantry item card.
                                         </p>
 
-                                        <button
-                                            onClick={() => setIsScanning(true)}
-                                            type="button"
-                                            className="px-8 py-3 bg-white text-black font-semibold rounded-lg hover:bg-green-500 hover:text-white transition-all shadow-lg hover:shadow-green-500/20 text-sm tracking-wide uppercase"
-                                        >
-                                            Activate Camera
-                                        </button>
+                                        <input
+                                            type="file"
+                                            ref={photoInputRef}
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handlePhotoUpload}
+                                        />
+
+                                        <div className="flex flex-wrap gap-3 justify-center">
+                                            <button
+                                                onClick={() => setIsScanning(true)}
+                                                type="button"
+                                                className="px-6 py-3 bg-white text-black font-semibold rounded-lg hover:bg-green-500 hover:text-white transition-all shadow-lg hover:shadow-green-500/20 text-xs tracking-wide uppercase flex items-center gap-2"
+                                            >
+                                                <Camera size={14} /> Activate Camera
+                                            </button>
+                                            <button
+                                                onClick={() => photoInputRef.current?.click()}
+                                                type="button"
+                                                className="px-6 py-3 bg-white/10 text-white font-semibold rounded-lg hover:bg-white/20 transition-all border border-white/10 text-xs tracking-wide uppercase flex items-center gap-2"
+                                            >
+                                                <Upload size={14} /> Upload File
+                                            </button>
+                                        </div>
                                     </>
                                 )}
 

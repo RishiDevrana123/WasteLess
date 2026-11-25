@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+const GROQ_MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
+
 export const getGroqRecipeSuggestions = async (inventory, prompt) => {
     // We default to the provided key if not in env
     const apiKey = process.env.GROQ_API_KEY;
@@ -43,7 +45,7 @@ IMPORTANT INSTRUCTIONS:
 
     try {
         const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-            model: 'llama-3.1-8b-instant',
+            model: GROQ_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: prompt || "Suggest some delicious recipes I can make to reduce food waste." }
@@ -91,7 +93,7 @@ Do not include any other markdown or text. Just the JSON object.`;
 
     try {
         const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-            model: 'llama-3.1-8b-instant',
+            model: GROQ_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: prompt }
@@ -123,7 +125,7 @@ Respond with ONLY the plain text advice, no markdown, formatting, or extra text.
 
     try {
         const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-            model: 'llama-3.1-8b-instant',
+            model: GROQ_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: `How should I store ${itemName}?` }

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Heart, Coffee, ShieldCheck, ArrowRight, CheckCircle2, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { paymentAPI } from '../services/api';
+import BorderBeam from '../components/ui/border-beam';
 
 const DONATION_TIERS = [
     {
@@ -44,8 +45,19 @@ export default function Donations() {
 
     useEffect(() => {
         const paymentStatus = searchParams.get('payment');
+        const sessionId = searchParams.get('session_id');
+
         if (paymentStatus === 'success') {
-            toast.success('Thank you for your generous donation!', { duration: 5000 });
+            if (sessionId) {
+                paymentAPI.verifyDonation({ session_id: sessionId })
+                    .then(() => toast.success('Thank you for your generous donation!', { duration: 5000 }))
+                    .catch((err) => {
+                        console.error('Verification error:', err);
+                        toast.success('Thank you for your donation!');
+                    });
+            } else {
+                toast.success('Thank you for your generous donation!', { duration: 5000 });
+            }
         } else if (paymentStatus === 'cancelled') {
             toast.error('Donation cancelled. You can try again anytime.');
         }
@@ -137,6 +149,7 @@ export default function Donations() {
                         </div>
 
                         <div className="p-6 rounded-3xl bg-[#111] border border-white/5 relative overflow-hidden group">
+                            <BorderBeam colorFrom="#22c55e" colorTo="#6ee7b7" duration={6} size={1} />
                             <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl group-hover:bg-green-500/20 transition-colors" />
                             <p className="relative z-10 text-gray-400 italic font-serif text-lg leading-relaxed">
                                 "WasteLess started as a passion project to reduce global food waste. Every contribution ensures this platform stays running entirely independent and accessible to everyone."
@@ -155,6 +168,7 @@ export default function Donations() {
                         transition={{ delay: 0.5 }}
                         className="bg-[#111] rounded-[2.5rem] p-8 md:p-10 border border-white/10 shadow-2xl relative"
                     >
+                        <BorderBeam colorFrom="#22c55e" colorTo="#34d399" duration={5} size={1.5} />
                         <h3 className="text-2xl font-bold text-white mb-8">Choose an amount</h3>
 
                         {/* Tiers Grid */}
@@ -168,8 +182,8 @@ export default function Donations() {
                                         key={tier.id}
                                         onClick={() => { setSelectedAmount(tier.amount); setCustomAmount(''); }}
                                         className={`relative p-5 rounded-2xl cursor-pointer overflow-hidden transition-all duration-300 ${isSelected
-                                                ? `bg-gradient-to-br ${tier.color} scale-105 shadow-xl ${tier.shadow}`
-                                                : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                                            ? `bg-gradient-to-br ${tier.color} scale-105 shadow-xl ${tier.shadow}`
+                                            : 'bg-white/5 border border-white/10 hover:bg-white/10'
                                             }`}
                                     >
                                         {/* Popular Badge */}

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, Check, Trash2, Clock, CheckCheck, Loader2, Inbox } from 'lucide-react';
 import { notificationAPI } from '../services/api';
 import { useNotificationStore } from '../store/notificationStore';
@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Notifications() {
+    const queryClient = useQueryClient();
     const { markAsRead, markAllAsRead } = useNotificationStore();
 
     const { data, isLoading } = useQuery({
@@ -25,8 +26,8 @@ export default function Notifications() {
 
     const handleMarkAsRead = async (id) => {
         try {
-            await notificationAPI.markAsRead(id);
-            markAsRead(id);
+            await markAsRead(id);
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
         } catch (error) {
             console.error('Failed to mark as read:', error);
         }
@@ -34,8 +35,8 @@ export default function Notifications() {
 
     const handleMarkAllAsRead = async () => {
         try {
-            await notificationAPI.markAllAsRead();
-            markAllAsRead();
+            await markAllAsRead();
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
         } catch (error) {
             console.error('Failed to mark all as read:', error);
         }
