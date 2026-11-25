@@ -5,7 +5,20 @@ import { stripeConfig } from '../config/index.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 // CLIENT_URL may be comma-separated for CORS; extract the first URL for redirects
-const CLIENT_BASE_URL = (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim();
+const DEFAULT_CLIENT_URL = (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim();
+
+const getClientBaseUrl = (req) => {
+    const requestOrigin = req?.headers?.origin;
+    if (requestOrigin) {
+        const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+            .split(',')
+            .map(o => o.trim());
+        if (allowedOrigins.includes(requestOrigin) || requestOrigin.includes('vercel.app')) {
+            return requestOrigin;
+        }
+    }
+    return DEFAULT_CLIENT_URL;
+};
 
 // Initialize Stripe (mock if no keys provided)
 let stripe;
@@ -20,7 +33,7 @@ if (stripeConfig.secretKey) {
             sessions: {
                 create: async (options) => ({
                     id: 'session_mock_' + Date.now(),
-                    url: `${CLIENT_BASE_URL}/donations?payment=success&session_id=session_mock_${Date.now()}`,
+                    url: `${DEFAULT_CLIENT_URL}/donations?payment=success&session_id=session_mock_${Date.now()}`,
                 }),
             },
         },
@@ -34,6 +47,8 @@ export const createDonationOrder = async (req, res, next) => {
         if (!amount || isNaN(amount) || amount <= 0 || !Number.isFinite(amount)) {
             return res.status(400).json({ success: false, error: 'Invalid donation amount' });
         }
+
+        const clientBaseUrl = getClientBaseUrl(req);
 
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -49,8 +64,8 @@ export const createDonationOrder = async (req, res, next) => {
                 quantity: 1,
             }],
             mode: 'payment',
-            success_url: `${CLIENT_BASE_URL}/donations?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${CLIENT_BASE_URL}/donations?payment=cancelled`,
+            success_url: `${clientBaseUrl}/donations?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${clientBaseUrl}/donations?payment=cancelled`,
         });
 
         // Store donation in DB
